@@ -4,7 +4,7 @@ function logger($level, $message)
 {
   echo $level . ' ' . $message . "\n";
   
-  file_put_contents('log.txt', $level . ' ' . $message . "\n", FILE_APPEND);
+  file_put_contents('out/log.txt', $level . ' ' . $message . "\n", FILE_APPEND);
 }
 
 function query2array($query, $key_name=null, $value_name=null)
@@ -71,7 +71,7 @@ function get_issue_title($issue)
   
   $res.= $issue['summary'];
   
-  $res = htmlspecialchars($res, ENT_QUOTES, $conf['db']['encode'], false);
+  //$res = htmlspecialchars($res, ENT_QUOTES, $conf['db']['encode'], false);
   $res = utf8_encode($res);
   
   return $res;
@@ -271,30 +271,30 @@ function github_post($url, $data, $user, $patch = false)
   
   $url = 'https://api.github.com/repos/' . $conf['repo']['user'] .'/' . $conf['repo']['name'] . '/' . $url;
 
-  file_put_contents('dump.txt', $url . "\n" . json_encode($data, JSON_PRETTY_PRINT) . "\n\n", FILE_APPEND);
+  file_put_contents('out/dump.txt', $url . "\n" . json_encode($data, JSON_PRETTY_PRINT) . "\n\n", FILE_APPEND);
   
-	$ch = curl_init();
-	curl_setopt($ch, CURLOPT_USERPWD, $user['login'] . ':' . $user['pwd']);
-	curl_setopt($ch, CURLOPT_URL, $url);
-	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-	curl_setopt($ch, CURLOPT_HEADER, false);
-	curl_setopt($ch, CURLOPT_POST, true);
-	curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-	curl_setopt($ch, CURLOPT_USERAGENT, 'github2github for ' . $conf['repo']['user'] .'/' . $conf['repo']['name']);
-	if ($patch)
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_USERPWD, $user['login'] . ':' . $user['pwd']);
+  curl_setopt($ch, CURLOPT_URL, $url);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+  curl_setopt($ch, CURLOPT_HEADER, false);
+  curl_setopt($ch, CURLOPT_POST, true);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+  curl_setopt($ch, CURLOPT_USERAGENT, 'github2github for ' . $conf['repo']['user'] .'/' . $conf['repo']['name']);
+  if ($patch)
   {
-		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
-	}
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
+  }
   
-	$ret = curl_exec($ch);
-	if (!$ret)
+  $ret = curl_exec($ch);
+  if (!$ret)
   {
-		trigger_error(curl_error($ch));
-	}
-	curl_close($ch);
+    trigger_error(curl_error($ch));
+  }
+  curl_close($ch);
   
-	return $ret;
+  return $ret;
 }
 
 function github_add_milestone($data)
@@ -302,29 +302,31 @@ function github_add_milestone($data)
   global $conf;
   $user = $conf['users'][$conf['default_user']];
   $res = github_post('milestones', $data, $user);
-	return json_decode($res, true);
+  return json_decode($res, true);
 }
 
-function github_add_label($data, $user)
+function github_add_label($data)
 {
+  global $conf;
+  $user = $conf['users'][$conf['default_user']];
   $res = github_post('labels', $data, $user);
-	return json_decode($res, true);
+  return json_decode($res, true);
 }
 
 function github_add_issue($data, $user)
 {
   $res = github_post('issues', $data, $user);
-	return json_decode($res, true);
+  return json_decode($res, true);
 }
 
 function github_add_comment($issue, $data, $user)
 {
   $res = github_post('issues/' . $issue . '/comments', array('body' => $data), $user);
-	return json_decode($res, true);
+  return json_decode($res, true);
 }
 
 function github_update_issue($issue, $data, $user)
 {
   $res = github_post('issues/' . $issue, $data, $user, true);
-	return json_decode($res, true);
+  return json_decode($res, true);
 }

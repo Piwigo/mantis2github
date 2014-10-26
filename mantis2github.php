@@ -4,6 +4,8 @@ require('constants.inc.php');
 require('config.inc.php');
 require('functions.inc.php');
 
+@mkdir('out/');
+
 
 // setup rate limit, 5000 request per hour
 $_TIME = microtime(true);
@@ -60,7 +62,7 @@ $github_labels = array(
 
 
 // create milestones
-if (!file_exists('milestones.json'))
+if (!file_exists('out/milestones.json'))
 {
   $query ='
 SELECT
@@ -96,11 +98,11 @@ SELECT
     }
   }
   
-  file_put_contents('milestones.json', json_encode($github_milestones));
+  file_put_contents('out/milestones.json', json_encode($github_milestones));
 }
 else
 {
-  $github_milestones = json_decode(file_get_contents('milestones.json'), true);
+  $github_milestones = json_decode(file_get_contents('out/milestones.json'), true);
 }
 
 
@@ -151,8 +153,8 @@ $query.= '
     AND b.duplicate_id = 0
     ' . (!$conf['import_resolved'] ? 'AND b.status < ' . RESOLVED : '') . '
     ' . (!$conf['import_private'] ? 'AND b.view_state != ' . VS_PRIVATE : '') . '
-  ORDER BY b.date_submitted ASC
-  LIMIT 20
+  ORDER BY
+    b.date_submitted ASC
 ;';
 
 $result = $db->query($query);
@@ -201,7 +203,7 @@ while ($row = $result->fetch_assoc())
   }
 }
 
-file_put_contents('issues.json', json_encode($github_issues));
+file_put_contents('out/issues.json', json_encode($github_issues));
 
 
 // create bug relationships via comments
@@ -222,11 +224,6 @@ $result = $db->query($query);
 
 while ($row = $result->fetch_assoc())
 {
-  if (!isset($github_issues[$row['src']]) || !isset($github_issues[$rel['dest']]))
-  {
-    continue;
-  }
-  
   $resp = github_add_comment(
     $github_issues[$row['src']],
     get_related_comment($row),
@@ -235,11 +232,11 @@ while ($row = $result->fetch_assoc())
   
   if (isset($resp['id']))
   {
-    logger('INFO', 'Added relationship between tickets #' . $row['src'] . ' and #' . $rel['dest']);
+    logger('INFO', 'Added relationship between tickets #' . $row['src'] . ' and #' . $row['dest']);
   }
   else
   {
-    logger('ERROR', 'Failed to add relationship between tickets #' . $row['src'] . ' and #' . $rel['dest']);
+    logger('ERROR', 'Failed to add relationship between tickets #' . $row['src'] . ' and #' . $row['dest']);
   }
 }
 
@@ -259,18 +256,15 @@ SELECT
     n.note_type = ' . BUGNOTE . '
     AND n.bug_id IN(' . implode(',', array_keys($github_issues)) . ')
     AND n.reporter_id NOT IN(' . implode(',', $conf['bugnote_ban_users']) . ')
-  ORDER BY n.date_submitted ASC
+  ORDER BY
+    n.bug_id ASC,
+    n.date_submitted ASC
 ;';
 
 $result = $db->query($query);
 
 while ($row = $result->fetch_assoc())
 {
-  if (!isset($github_issues[$row['bug_id']]))
-  {
-    continue;
-  }
-
   $resp = github_add_comment(
     $github_issues[$row['bug_id']],
     get_comment_body($row),

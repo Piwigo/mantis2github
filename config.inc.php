@@ -30,13 +30,14 @@ $conf = array(
       ),
     ),
   
-  // teh default user MUST have a password defined
+  // the default user MUST have a password defined
   'default_user' => 'YOUR MANTIS LOGIN',
   
   // which mantis projects to import ?
+  // table: mantis_project_table
   'projects' => array(1),
   
-  // give a simple (chars only) name to your custom fields
+  // give a simple (chars only, no spaces) name to your custom fields
   // table: mantis_custom_field_table
   'fields' => array(
     //2 => 'php',
