@@ -4,17 +4,18 @@ require('constants.inc.php');
 require('config.inc.php');
 require('functions.inc.php');
 
-@mkdir('out/');
 
+//-----------------------------------------------------------------------------\
+// INIT                                                                        |
+//-----------------------------------------------------------------------------/
+@mkdir('out/');
 
 // setup rate limit, 5000 request per hour
 $_TIME = microtime(true);
 $_LIMIT = 5000/3600;
 
-
 // connect to database
 $db = new mysqli($conf['db']['host'], $conf['db']['user'], $conf['db']['pwd'], $conf['db']['name']);
-
 
 // get standard data
 $users = query2array('SELECT id, username FROM mantis_user_table;', 'id');
@@ -26,11 +27,9 @@ foreach ($fields as &$field)
 }
 unset($field);
 
-
 // storages for github ids
 $github_issues = array();
 $github_milestones = array();
-
 
 // hardcoded labels
 $github_labels = array(
@@ -61,7 +60,9 @@ $github_labels = array(
   );
 
 
-// create milestones
+//-----------------------------------------------------------------------------\
+// MILESTONES                                                                  |
+//-----------------------------------------------------------------------------/
 if (!file_exists('out/milestones.json'))
 {
   $query ='
@@ -106,7 +107,9 @@ else
 }
 
 
-// create bugs
+//-----------------------------------------------------------------------------\
+// ISSUES                                                                      |
+//-----------------------------------------------------------------------------/
 $query = '
 SELECT
     b.id,
@@ -161,6 +164,8 @@ $result = $db->query($query);
 
 while ($row = $result->fetch_assoc())
 {
+  $user = get_github_user($row);
+  
   $issue = array(
     'id' => $row['id'],
     'title' => get_issue_title($row),
@@ -170,7 +175,7 @@ while ($row = $result->fetch_assoc())
     'labels' => get_issue_labels($row),
     );
     
-  $resp = github_add_issue($issue, get_github_user($row));
+  $resp = github_add_issue($issue, $user);
   
   if (isset($resp['number']))
   {
@@ -184,7 +189,7 @@ while ($row = $result->fetch_assoc())
       $resp2 = github_update_issue(
         $resp['number'],
         array('state' => 'closed'),
-        get_github_user($row)
+        $user
         );
       
       if (isset($resp2['number']))
@@ -206,7 +211,9 @@ while ($row = $result->fetch_assoc())
 file_put_contents('out/issues.json', json_encode($github_issues));
 
 
-// create bug relationships via comments
+//-----------------------------------------------------------------------------\
+// RELATIONSHIPS (via comments)                                                |
+//-----------------------------------------------------------------------------/
 $query = '
 SELECT
     source_bug_id AS src,
@@ -241,7 +248,9 @@ while ($row = $result->fetch_assoc())
 }
 
 
-// create bug notes
+//-----------------------------------------------------------------------------\
+// COMMENTS                                                                    |
+//-----------------------------------------------------------------------------/
 $query = '
 SELECT
     n.id,
@@ -255,7 +264,7 @@ SELECT
   WHERE
     n.note_type = ' . BUGNOTE . '
     AND n.bug_id IN(' . implode(',', array_keys($github_issues)) . ')
-    AND n.reporter_id NOT IN(' . implode(',', $conf['bugnote_ban_users']) . ')
+    ' . (!empty($conf['bugnote_ban_users']) ? 'AND n.reporter_id NOT IN(' . implode(',', $conf['bugnote_ban_users']) . ')' : '') . '
   ORDER BY
     n.bug_id ASC,
     n.date_submitted ASC

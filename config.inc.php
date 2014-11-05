@@ -33,6 +33,9 @@ $conf = array(
   // the default user MUST have a password defined
   'default_user' => 'YOUR MANTIS LOGIN',
   
+  // set the default user as assignee for every assigned issue where the Github user can't be found
+  'assign_to_default_user' => true,
+  
   // which mantis projects to import ?
   // table: mantis_project_table
   'projects' => array(1),

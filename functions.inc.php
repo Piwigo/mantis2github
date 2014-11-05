@@ -1,5 +1,11 @@
 <?php
 
+/**
+ * Display log message and write it in out/log.txt file
+ *
+ * @param string level
+ * @param string message
+ */
 function logger($level, $message)
 {
   echo $level . ' ' . $message . "\n";
@@ -7,6 +13,14 @@ function logger($level, $message)
   file_put_contents('out/log.txt', $level . ' ' . $message . "\n", FILE_APPEND);
 }
 
+/**
+ * Builds an data array from a SQL query.
+ *
+ * @param string $query
+ * @param string $key_name
+ * @param string $value_name
+ * @return array
+ */
 function query2array($query, $key_name=null, $value_name=null)
 {
   global $db;
@@ -44,6 +58,13 @@ function query2array($query, $key_name=null, $value_name=null)
   return $data;
 }
 
+/**
+ * Get Mantis username from global $users array
+ *
+ * @param string id
+ * @param strinf default
+ * @return string
+ */
 function get_username($id, $def='unknown user')
 {
   global $users;
@@ -58,6 +79,12 @@ function get_username($id, $def='unknown user')
   }
 }
 
+/**
+ * Build issue title
+ *
+ * @param array issue
+ * @return string
+ */
 function get_issue_title($issue)
 {
   global $conf;
@@ -77,6 +104,12 @@ function get_issue_title($issue)
   return $res;
 }
 
+/**
+ * Build issue body
+ *
+ * @param array issue
+ * @return string
+ */
 function get_issue_body($issue)
 {
   global $fields, $conf;
@@ -124,6 +157,12 @@ function get_issue_body($issue)
   return $res;
 }
 
+/**
+ * Build comment
+ *
+ * @param array note
+ * @return string
+ */
 function get_comment_body($note)
 {
   global $conf;
@@ -139,6 +178,12 @@ function get_comment_body($note)
   return $res;
 }
 
+/**
+ * Get issue assignee username among Github users
+ *
+ * @param array issue
+ * @return string|null
+ */
 function get_issue_assignee($issue)
 {
   global $conf;
@@ -150,19 +195,25 @@ function get_issue_assignee($issue)
   
   $user = get_username($issue['handler_id'], null);
   
-  if ($user === null)
+  if ($user !== null && isset($conf['users'][$user]))
   {
-    return null;
+    return $conf['users'][$user]['login'];
   }
   
-  if (!isset($conf['users'][$user]))
+  if ($conf['assign_to_default_user'])
   {
-    return null;
+    return $conf['users'][$conf['default_user']]['login'];
   }
   
-  return $conf['users'][$user]['login'];
+  return null;
 }
 
+/**
+ * Get issue milestone id
+ *
+ * @param array issue
+ * @return int
+ */
 function get_issue_milestone($issue)
 {
   global $github_milestones;
@@ -190,6 +241,12 @@ function get_issue_milestone($issue)
   }
 }
 
+/**
+ * Get issue labels
+ *
+ * @param array issue
+ * @return string[]
+ */
 function get_issue_labels($issue)
 {
   global $github_labels;
@@ -207,6 +264,12 @@ function get_issue_labels($issue)
   return $labels;
 }
 
+/**
+ * Get Github user for API call
+ *
+ * @param array issue or note
+ * @return array
+ */
 function get_github_user($issue)
 {
   global $conf;
@@ -240,6 +303,12 @@ function get_github_user($issue)
   return $conf['users'][$conf['default_user']];
 }
 
+/**
+ * Get comment body for relation
+ *
+ * @param array relation
+ * @return string
+ */
 function get_related_comment($rel)
 {
   global $github_issues;
@@ -257,6 +326,15 @@ function get_related_comment($rel)
   }
 }
 
+/**
+ * Perform POST/PATCH on Github API.
+ *
+ * @param string url
+ * @param array data
+ * @param array user
+ * @param boolean patch
+ * @return array
+ */
 function github_post($url, $data, $user, $patch = false)
 {
   global $_TIME, $_LIMIT, $conf;
@@ -297,6 +375,12 @@ function github_post($url, $data, $user, $patch = false)
   return $ret;
 }
 
+/**
+ * Add a milestone via GH API
+ *
+ * @param array data
+ * @return array
+ */
 function github_add_milestone($data)
 {
   global $conf;
@@ -305,6 +389,12 @@ function github_add_milestone($data)
   return json_decode($res, true);
 }
 
+/**
+ * Add a label via GH API
+ *
+ * @param array data
+ * @return array
+ */
 function github_add_label($data)
 {
   global $conf;
@@ -313,18 +403,41 @@ function github_add_label($data)
   return json_decode($res, true);
 }
 
+/**
+ * Add an issue via GH API
+ *
+ * @param array data
+ * @param array user
+ * @return array
+ */
 function github_add_issue($data, $user)
 {
   $res = github_post('issues', $data, $user);
   return json_decode($res, true);
 }
 
+/**
+ * Add a comment via GH API
+ *
+ * @param int issue
+ * @param array data
+ * @param array user
+ * @return array
+ */
 function github_add_comment($issue, $data, $user)
 {
   $res = github_post('issues/' . $issue . '/comments', array('body' => $data), $user);
   return json_decode($res, true);
 }
 
+/**
+ * Update an issue via GH API
+ *
+ * @param int issue
+ * @param array data
+ * @param array user
+ * @return array
+ */
 function github_update_issue($issue, $data, $user)
 {
   $res = github_post('issues/' . $issue, $data, $user, true);

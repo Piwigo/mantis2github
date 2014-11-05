@@ -1,5 +1,7 @@
 <?php
 
+// from Mantis sources
+
 # status
 define('NEW_',          10);   # NEW seems to be a reserved keyword
 define('FEEDBACK',      20);
