@@ -10,9 +10,9 @@ require('functions.inc.php');
 //-----------------------------------------------------------------------------/
 @mkdir('out/');
 
-// setup rate limit, 5000 request per hour
-$_TIME = microtime(true);
-$_LIMIT = 5000/3600;
+// setup rate limit, 600 request per hour
+$_TIME = time();
+$_LIMIT = 3600/600;
 
 // connect to database
 $db = new mysqli($conf['db']['host'], $conf['db']['user'], $conf['db']['pwd'], $conf['db']['name']);
@@ -20,7 +20,7 @@ $db = new mysqli($conf['db']['host'], $conf['db']['user'], $conf['db']['pwd'], $
 // get standard data
 $users = query2array('SELECT id, username FROM mantis_user_table;', 'id');
 $projects = query2array('SELECT id, name FROM mantis_project_table WHERE id IN(' . implode(',', $conf['projects']) . ');', 'id');
-$fields = query2array('SELECT id, name, default_value FROM mantis_custom_field_table WHERE id IN(' . implode(',', array_keys($conf['fields'])) . ');', 'id');
+$fields = empty($conf['fields']) ? array() : query2array('SELECT id, name, default_value FROM mantis_custom_field_table WHERE id IN(' . implode(',', array_keys($conf['fields'])) . ');', 'id');
 foreach ($fields as &$field)
 {
   $field['key'] = $conf['fields'][$field['id']];
@@ -110,6 +110,19 @@ else
 //-----------------------------------------------------------------------------\
 // ISSUES                                                                      |
 //-----------------------------------------------------------------------------/
+if (file_exists('out/issues.txt'))
+{
+  foreach (file('out/issues.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line)
+  {
+    $line = explode(' ', $line);
+    $github_issues[$line[0]] = $line[1];
+  }
+}
+else
+{
+  file_put_contents('out/issues.txt', 'mantis_id github_id' . "\n", FILE_APPEND);
+}
+
 $query = '
 SELECT
     b.id,
@@ -120,7 +133,7 @@ SELECT
     b.reproducibility,
     b.status,
     b.resolution,
-    b.category,
+    c.name as category,
     b.date_submitted,
     b.version,
     b.fixed_in_version,
@@ -139,7 +152,9 @@ foreach ($fields as $field)
 $query.= '
   FROM mantis_bug_table AS b
     INNER JOIN mantis_bug_text_table AS t
-      ON b.bug_text_id = t.id';
+      ON b.bug_text_id = t.id
+    LEFT JOIN mantis_category_table AS c
+      ON c.id = b.category_id';
   
 foreach ($fields as $field)
 {
@@ -155,7 +170,15 @@ $query.= '
     b.project_id IN(' . implode(',', $conf['projects']) . ')
     AND b.duplicate_id = 0
     ' . (!$conf['import_resolved'] ? 'AND b.status < ' . RESOLVED : '') . '
-    ' . (!$conf['import_private'] ? 'AND b.view_state != ' . VS_PRIVATE : '') . '
+    ' . (!$conf['import_private'] ? 'AND b.view_state != ' . VS_PRIVATE : '');
+
+if (!empty($github_issues))
+{
+  $query.= '
+    AND b.id NOT IN (' . implode(',', array_keys($github_issues)) . ')';
+}
+
+$query.= '
   ORDER BY
     b.date_submitted ASC
 ;';
@@ -183,6 +206,8 @@ while ($row = $result->fetch_assoc())
     
     logger('INFO', 'Imported ticket #' . $issue['id'] . ' (#' . $resp['number'] . ')');
     
+    file_put_contents('out/issues.txt', $issue['id'] . ' ' . $resp['number'] . "\n", FILE_APPEND);
+    
     // close bug
     if ($row['status'] >= RESOLVED)
     {
@@ -207,8 +232,6 @@ while ($row = $result->fetch_assoc())
     logger('ERROR', 'Failed to import ticket #' . $issue['id']);
   }
 }
-
-file_put_contents('out/issues.json', json_encode($github_issues));
 
 
 //-----------------------------------------------------------------------------\
@@ -251,6 +274,12 @@ while ($row = $result->fetch_assoc())
 //-----------------------------------------------------------------------------\
 // COMMENTS                                                                    |
 //-----------------------------------------------------------------------------/
+$comments_id = array();
+if (file_exists('out/comments.txt'))
+{
+  $comments_id = file('out/comments.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+}
+
 $query = '
 SELECT
     n.id,
@@ -264,7 +293,15 @@ SELECT
   WHERE
     n.note_type = ' . BUGNOTE . '
     AND n.bug_id IN(' . implode(',', array_keys($github_issues)) . ')
-    ' . (!empty($conf['bugnote_ban_users']) ? 'AND n.reporter_id NOT IN(' . implode(',', $conf['bugnote_ban_users']) . ')' : '') . '
+    ' . (!empty($conf['bugnote_ban_users']) ? 'AND n.reporter_id NOT IN(' . implode(',', $conf['bugnote_ban_users']) . ')' : '');
+
+if (!empty($comments_id))
+{
+  $query.= '
+    AND n.id NOT IN (' . implode(',', $comments_id) . ')';
+}
+
+$query.= '
   ORDER BY
     n.bug_id ASC,
     n.date_submitted ASC
@@ -282,6 +319,8 @@ while ($row = $result->fetch_assoc())
   
   if (isset($resp['id']))
   {
+    file_put_contents('out/comments.txt', $row['id'] . "\n", FILE_APPEND);
+    
     logger('INFO', 'Imported comment #' . $row['id'] . ' on ticket #' . $row['bug_id'] . ' (#' . $github_issues[$row['bug_id']] . ')');
   }
   else

@@ -115,7 +115,7 @@ function get_issue_body($issue)
   global $fields, $conf;
   
   $res = '**Reported by ' . get_username($issue['reporter_id']) . ' on ' .
-    (new DateTime($issue['date_submitted']))->format('j M Y H:i') . '**' . "\n\n";
+    (new DateTime('@'.$issue['date_submitted']))->format('j M Y H:i') . '**' . "\n\n";
   
   if (!empty($issue['version']))
   {
@@ -168,7 +168,7 @@ function get_comment_body($note)
   global $conf;
   
   $res = '**Comment posted by ' . get_username($note['reporter_id']) . ' on ' .
-    (new DateTime($note['date_submitted']))->format('j M Y H:i') . '**' . "\n\n";
+    (new DateTime('@'.$note['date_submitted']))->format('j M Y H:i') . '**' . "\n\n";
   
   $res.= $note['note'];
   
@@ -339,12 +339,12 @@ function github_post($url, $data, $user, $patch = false)
 {
   global $_TIME, $_LIMIT, $conf;
   
-  $now = microtime(true);
+  $now = time();
   if ($now - $_TIME < $_LIMIT)
   {
-    usleep(($now - $_TIME) * 1100);
+    sleep(round($_LIMIT - ($now - $_TIME)));
   }
-  $_TIME = microtime(true);
+  $_TIME = time();
   
   
   $url = 'https://api.github.com/repos/' . $conf['repo']['user'] .'/' . $conf['repo']['name'] . '/' . $url;
@@ -359,7 +359,7 @@ function github_post($url, $data, $user, $patch = false)
   curl_setopt($ch, CURLOPT_HEADER, false);
   curl_setopt($ch, CURLOPT_POST, true);
   curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-  curl_setopt($ch, CURLOPT_USERAGENT, 'github2github for ' . $conf['repo']['user'] .'/' . $conf['repo']['name']);
+  curl_setopt($ch, CURLOPT_USERAGENT, 'mantis2github for ' . $conf['repo']['user'] .'/' . $conf['repo']['name']);
   if ($patch)
   {
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PATCH');
@@ -371,6 +371,8 @@ function github_post($url, $data, $user, $patch = false)
     trigger_error(curl_error($ch));
   }
   curl_close($ch);
+  
+  file_put_contents('out/dump.txt', $url . "\n" . json_encode(json_decode($ret, true), JSON_PRETTY_PRINT) . "\n\n", FILE_APPEND);
   
   return $ret;
 }
